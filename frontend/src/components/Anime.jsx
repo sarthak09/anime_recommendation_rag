@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 
+// Vite env: must start with VITE_
+const API_BASE_URL =
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+
 const Anime = () => {
   const [inputText, setInputText] = useState("");
   const [responseText, setResponseText] = useState("");
   const [showResponse, setShowResponse] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [streaming, setStreaming] = useState(false);
 
-  // Normal (non-streaming) submit - optional
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -20,71 +22,59 @@ const Anime = () => {
     setShowResponse(false);
     setResponseText("");
 
+    // AbortController for manual timeout
+    const controller = new AbortController();
+    const timeoutMs = 60000; // 60 seconds
+
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
     try {
-      const res = await fetch("/api/anime", {
+      const response = await fetch(`${API_BASE_URL}/anime`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ input_: inputText }),
+        signal: controller.signal,
       });
 
-      if (!res.ok) {
-        console.error("Backend status:", res.status);
-        const text = await res.text().catch(() => "");
-        console.error("Backend body:", text);
-        alert("Backend error. Check logs.");
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.error("Backend HTTP status:", response.status);
+        const text = await response.text().catch(() => "");
+        console.error("Backend response body:", text);
+        alert("Backend error. Check Flask logs.");
         return;
       }
 
-      const json = await res.json();
+      const json = await response.json();
+      console.log("Backend JSON:", json);
+
       if (json.status === "success") {
         setResponseText(json.response || "");
         setShowResponse(true);
-        setInputText("");
+        setInputText(""); // clear user input
       } else {
         alert(json.message || json.error || "Unknown error from backend.");
       }
     } catch (err) {
-      console.error("Network error:", err);
-      alert("Network error. Is backend running?");
+      clearTimeout(timeoutId);
+
+      if (err.name === "AbortError") {
+        console.error("Request timed out after 60 seconds");
+        alert("The request took too long (over 60s). Please try again.");
+      } else {
+        console.error("Network or CORS error:", err);
+        alert(
+          "Network/CORS error. Check if backend is running, reachable, and CORS is configured."
+        );
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  // Streaming version
-  const handleStream = (e) => {
-    e.preventDefault();
-
-    if (!inputText.trim()) {
-      alert("Please enter a question.");
-      return;
-    }
-
-    setResponseText("");
-    setShowResponse(true);
-    setStreaming(true);
-
-    // SSE only supports GET, so we pass query as ?q=
-    const url = `/api/anime_stream?q=${encodeURIComponent(inputText)}`;
-    const es = new EventSource(url);
-
-    es.onmessage = (event) => {
-      const chunk = event.data;
-      if (chunk === "[END]") {
-        es.close();
-        setStreaming(false);
-        setInputText("");
-      } else {
-        setResponseText((prev) => (prev ? prev + " " + chunk : chunk));
-      }
-    };
-
-    es.onerror = (err) => {
-      console.error("SSE error:", err);
-      es.close();
-      setStreaming(false);
-      alert("Streaming connection error. Check backend.");
-    };
   };
 
   const handleReset = (e) => {
@@ -92,8 +82,6 @@ const Anime = () => {
     setInputText("");
     setResponseText("");
     setShowResponse(false);
-    setLoading(false);
-    setStreaming(false);
   };
 
   return (
@@ -111,6 +99,7 @@ const Anime = () => {
             rows="6"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+            name="input_"
             id="input_"
             placeholder="Type your question here..."
           ></textarea>
@@ -118,30 +107,15 @@ const Anime = () => {
 
         {/* Buttons row */}
         <div className="mb-3 d-flex justify-content-between align-items-center">
-          <div>
-            <button
-              type="submit"
-              className="btn btn-success me-2"
-              disabled={loading || streaming}
-            >
-              {loading ? "Thinking..." : "Submit (full)"}
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleStream}
-              disabled={loading || streaming}
-            >
-              {streaming ? "Streaming..." : "Stream answer"}
-            </button>
-          </div>
+          <button type="submit" className="btn btn-success" disabled={loading}>
+            {loading ? "Thinking..." : "Submit"}
+          </button>
 
           <button
             type="button"
             onClick={handleReset}
             className="btn btn-secondary"
-            disabled={loading || streaming}
+            disabled={loading}
           >
             Reset
           </button>
