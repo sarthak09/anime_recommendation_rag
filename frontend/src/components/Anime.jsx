@@ -1,142 +1,174 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
-// Vite env: must start with VITE_
-const API_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 const Anime = () => {
   const [inputText, setInputText] = useState("");
   const [responseText, setResponseText] = useState("");
-  const [showResponse, setShowResponse] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const abortControllerRef = useRef(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!inputText.trim()) {
-      alert("Please enter a question.");
-      return;
-    }
+  const handleStreamSubmit = async () => {
+    if (!inputText.trim()) return;
 
     setLoading(true);
-    setShowResponse(false);
     setResponseText("");
+    setStatusMessage("Connecting...");
+    abortControllerRef.current = new AbortController();
 
-    // AbortController for manual timeout
-    const controller = new AbortController();
-    const timeoutMs = 60000; // 60 seconds
+    try {
+      const response = await fetch(`${API_BASE_URL}/anime/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input_: inputText }),
+        signal: abortControllerRef.current.signal
+      });
 
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, timeoutMs);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      console.log("Started reading stream");
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value);
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "status") {
+              setStatusMessage(data.message);
+            } else if (data.type === "token") {
+              setResponseText(prev => prev + data.content);
+            } else if (data.type === "done") {
+              setInputText("");
+              setStatusMessage("");
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setStatusMessage("Error: Try standard method");
+      }
+    } finally {
+      setLoading(false);
+      setStatusMessage("");
+    }
+  };
+
+  const handleStandardSubmit = async () => {
+    if (!inputText.trim()) return;
+
+    setLoading(true);
+    setResponseText("");
+    setStatusMessage("Processing...");
+    abortControllerRef.current = new AbortController();
 
     try {
       const response = await fetch(`${API_BASE_URL}/anime`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input_: inputText }),
-        signal: controller.signal,
+        signal: abortControllerRef.current.signal
       });
 
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.error("Backend HTTP status:", response.status);
-        const text = await response.text().catch(() => "");
-        console.error("Backend response body:", text);
-        alert("Backend error. Check Flask logs.");
-        return;
-      }
-
       const json = await response.json();
-      console.log("Backend JSON:", json);
 
       if (json.status === "success") {
-        setResponseText(json.response || "");
-        setShowResponse(true);
-        setInputText(""); // clear user input
-      } else {
-        alert(json.message || json.error || "Unknown error from backend.");
+        setResponseText(json.response);
+        setInputText("");
       }
     } catch (err) {
-      clearTimeout(timeoutId);
-
-      if (err.name === "AbortError") {
-        console.error("Request timed out after 60 seconds");
-        alert("The request took too long (over 60s). Please try again.");
-      } else {
-        console.error("Network or CORS error:", err);
-        alert(
-          "Network/CORS error. Check if backend is running, reachable, and CORS is configured."
-        );
-      }
+      setStatusMessage(err.name === "AbortError" ? "Cancelled" : "Error");
     } finally {
       setLoading(false);
+      setStatusMessage("");
     }
   };
 
-  const handleReset = (e) => {
-    e.preventDefault();
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setLoading(false);
+    setStatusMessage("");
+  };
+
+  const handleReset = () => {
+    handleCancel();
     setInputText("");
     setResponseText("");
-    setShowResponse(false);
   };
 
   return (
     <div className="container mt-4">
       <h2 className="mb-3">Anime Q&A</h2>
 
-      <form onSubmit={handleSubmit}>
-        {/* Input textarea */}
+      <div className="mb-3">
+        <textarea
+          className="form-control"
+          rows="6"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Type your question here..."
+          disabled={loading}
+        />
+      </div>
+
+      {statusMessage && (
+        <div className="alert alert-info">{statusMessage}</div>
+      )}
+
+      <div className="mb-3 d-flex gap-2">
+        <button
+          onClick={handleStreamSubmit}
+          className="btn btn-primary"
+          disabled={loading || !inputText.trim()}
+        >
+          Stream
+        </button>
+
+        <button
+          onClick={handleStandardSubmit}
+          className="btn btn-success"
+          disabled={loading || !inputText.trim()}
+        >
+          Standard
+        </button>
+
+        <button
+          onClick={handleCancel}
+          className="btn btn-warning"
+          disabled={!loading}
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={handleReset}
+          className="btn btn-secondary"
+        >
+          Reset
+        </button>
+      </div>
+
+      {responseText && (
         <div className="mb-3">
-          <label htmlFor="input_" className="form-label">
-            Ask something about Anime
-          </label>
+          <label className="form-label">Response</label>
           <textarea
             className="form-control"
-            rows="6"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            name="input_"
-            id="input_"
-            placeholder="Type your question here..."
-          ></textarea>
+            rows="10"
+            value={responseText}
+            readOnly
+          />
         </div>
-
-        {/* Buttons row */}
-        <div className="mb-3 d-flex justify-content-between align-items-center">
-          <button type="submit" className="btn btn-success" disabled={loading}>
-            {loading ? "Thinking..." : "Submit"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReset}
-            className="btn btn-secondary"
-            disabled={loading}
-          >
-            Reset
-          </button>
-        </div>
-
-        {/* Response textarea */}
-        {showResponse && (
-          <div className="mb-3">
-            <label htmlFor="response_" className="form-label">
-              Response
-            </label>
-            <textarea
-              className="form-control"
-              rows="8"
-              value={responseText}
-              readOnly
-              id="response_"
-            ></textarea>
-          </div>
-        )}
-      </form>
+      )}
     </div>
   );
 };
