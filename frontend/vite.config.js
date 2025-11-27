@@ -10,4 +10,9 @@ export default defineConfig({
       },
     }),
   ],
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.js',
+    globals: true, // so you can use test(), expect() without importing
+  },
 })
