@@ -14,25 +14,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ---------- Backend: Python + pytest ----------
       - name: Set up Python
+      # This step will also handle pip caching
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install backend dependencies
         working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
 
       - name: Run backend tests
         working-directory: ./backend
         run: pytest
-        
+
+      # ---------- Frontend: Node + Vitest ----------
       - name: Set up Node.js
+      # This step will handle npm caching
         uses: actions/setup-node@v4
         with:
-          node-version: "22"   
+          node-version: "22"   # or your preferred version
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: ./frontend
