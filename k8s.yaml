@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: llmops-container
-        image: llmops-app:latest 
+        image: anime-rag-app:latest 
         imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 5000

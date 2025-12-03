@@ -103,5 +103,5 @@ def serve_static(path):
     return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
-    initialize_rag()
+#    initialize_rag()
     app.run(host='0.0.0.0', port=5000)
