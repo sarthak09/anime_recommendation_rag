@@ -15,3 +15,13 @@ docker logs anime-app
 
 #stop docker container and remove the container
 docker stop anime-app && docker rm anime-app
+
+
+
+github
+git checkout -b my-new-branch
+
+git add .
+git commit -m "Write a clear commit message here"
+
+git push -u origin my-new-branch
