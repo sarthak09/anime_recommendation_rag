@@ -1,0 +1,17 @@
+#Build Docker Image or rebuilt
+docker build -t anime-rag-app .
+
+#run
+docker run -d --name anime-app -p 5000:5000 --env-file ./backend/.env anime-rag-app
+"""
+-d = runs in background
+-p 5000:5000 = maps port 5000 (access via localhost:5000)
+--env-file = loads your API keys
+--name = names container "anime-app"
+"""
+
+# check logs
+docker logs anime-app
+
+#stop docker container and remove the container
+docker stop anime-app && docker rm anime-app

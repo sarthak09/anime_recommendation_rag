@@ -1,5 +1,4 @@
-# embedding.py
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 import os
 from dotenv import load_dotenv
 
@@ -7,7 +6,7 @@ load_dotenv()
 
 class Embed:
     def __init__(self, model_name="BAAI/bge-small-en-v1.5"):
-        self.embed = HuggingFaceBgeEmbeddings(
+        self.embed = HuggingFaceEmbeddings(
             model_name=model_name,
             model_kwargs={"device": "cpu"}
         )

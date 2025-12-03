@@ -1,66 +1,11 @@
 import React, { useState, useRef } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
-
 const Anime = () => {
   const [inputText, setInputText] = useState("");
   const [responseText, setResponseText] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const abortControllerRef = useRef(null);
-
-  const handleStreamSubmit = async () => {
-    if (!inputText.trim()) return;
-
-    setLoading(true);
-    setResponseText("");
-    setStatusMessage("Connecting...");
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/anime/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input_: inputText }),
-        signal: abortControllerRef.current.signal
-      });
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      console.log("Started reading stream");
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value);
-        const lines = buffer.split("\n");
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.slice(6));
-
-            if (data.type === "status") {
-              setStatusMessage(data.message);
-            } else if (data.type === "token") {
-              setResponseText(prev => prev + data.content);
-            } else if (data.type === "done") {
-              setInputText("");
-              setStatusMessage("");
-            }
-          }
-        }
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        setStatusMessage("Error: Try standard method");
-      }
-    } finally {
-      setLoading(false);
-      setStatusMessage("");
-    }
-  };
 
   const handleStandardSubmit = async () => {
     if (!inputText.trim()) return;
@@ -71,7 +16,7 @@ const Anime = () => {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch(`${API_BASE_URL}/anime`, {
+      const response = await fetch("/api/anime", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input_: inputText }),
@@ -126,14 +71,6 @@ const Anime = () => {
       )}
 
       <div className="mb-3 d-flex gap-2">
-        <button
-          onClick={handleStreamSubmit}
-          className="btn btn-primary"
-          disabled={loading || !inputText.trim()}
-        >
-          Stream
-        </button>
-
         <button
           onClick={handleStandardSubmit}
           className="btn btn-success"
